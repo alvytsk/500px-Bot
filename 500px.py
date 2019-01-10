@@ -4,6 +4,21 @@ import requests, time, json, os
 from bs4 import BeautifulSoup
 from random import randint
 
+class Color:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
+class ConsoleTextDecorator:
+    @staticmethod
+    def decorate(text, style):
+        return style + text + Color.ENDC
+
 scriptDirectory = os.path.abspath(os.path.dirname(__file__))
 logDate = time.strftime('%Y-%m-%d')
 
@@ -38,14 +53,15 @@ pendingFollowList = []
 acceptedFollowList = []
 ignoredFollowList = []
 
-def printToLog(string):
+def printToLog(string, color):
     global logFilePath, logFileName
     logTime = time.strftime('%H:%M:%S')
     if not os.path.exists(logFilePath):
         os.makedirs(logFilePath)
     with open(logFilePath + logFileName, 'a+') as f:
         f.write(logTime + ' - ' + string + '\n')
-    print(logTime + ' - ' + string)
+    #print(logTime + ' - ' + string)
+    print(ConsoleTextDecorator.decorate(logTime + ' - ' + string, color))
 
 def retrieveLists():
     global pendingFilePath, acceptedFilePath, ignoredFilePath
@@ -89,22 +105,22 @@ def followUser(targetUserName):
         try:
             followResp = userSession.post('https://500px.com/' + targetUserName + '/follow', timeout = 5, headers = csrfHeaders)
             if followResp.status_code == 200:
-                printToLog('Followed ' + targetUserName + '.')
+                printToLog('Followed ' + targetUserName + '.', Color.OKGREEN)
                 numFollowsDone += 1
                 addUserToPendingList(targetUserName)
                 continueLoop = False
             elif followResp.status_code == 404:
-                printToLog('User ' + targetUserName + ' no longer exists. Skipped follow.')
+                printToLog('User ' + targetUserName + ' no longer exists. Skipped follow.', Color.OKBLUE)
                 continueLoop = False
             elif followResp.status_code == 403:
-                printToLog('Already followed ' + targetUserName + '.')
+                printToLog('Already followed ' + targetUserName + '.', Color.OKGREEN)
                 continueLoop = False
             else:
-                printToLog('A server error (' + str(followResp.status_code) + ') occured. Retrying...')
-                printToLog('Error page: ' + followResp.url)
+                printToLog('A server error (' + str(followResp.status_code) + ') occured. Retrying...', Color.FAIL)
+                printToLog('Error page: ' + followResp.url, Color.FAIL)
                 time.sleep(5)
         except requests.exceptions.RequestException:
-            printToLog('Web page timed out. Retrying...')
+            printToLog('Web page timed out. Retrying...', Color.FAIL)
             time.sleep(5)
     time.sleep(20)
 
@@ -139,17 +155,17 @@ def unfollowUser(targetUserName):
         try:
             unfollowResp = userSession.post('https://500px.com/' + targetUserName + '/unfollow', timeout = 5, headers = csrfHeaders)
             if unfollowResp.status_code == 200:
-                printToLog('Unfollowed ' + targetUserName + '.')
+                printToLog('Unfollowed ' + targetUserName + '.', Color.OKGREEN)
                 continueLoop = False
             elif unfollowResp.status_code == 404:
-                printToLog('User ' + targetUserName + ' no longer exists. Skipped unfollow.')
+                printToLog('User ' + targetUserName + ' no longer exists. Skipped unfollow.', Color.OKBLUE)
                 continueLoop = False
             else:
-                printToLog('A server error (' + str(unfollowResp.status_code) + ') occured. Retrying...')
-                printToLog('Error page: ' + unfollowResp.url)
+                printToLog('A server error (' + str(unfollowResp.status_code) + ') occured. Retrying...', Color.FAIL)
+                printToLog('Error page: ' + unfollowResp.url, Color.FAIL)
                 time.sleep(5)
         except requests.exceptions.RequestException:
-            printToLog('Web page timed out. Retrying...')
+            printToLog('Web page timed out. Retrying...', Color.WARNING)
             time.sleep(5)
     time.sleep(20)
 
@@ -187,12 +203,12 @@ def requestWebPage(method, url, data = {}, headers = {}, checkStatusCode = True)
         try:
             response = userSession.request(method, url, data = data, headers = headers, timeout = 5)
         except requests.exceptions.RequestException:
-            printToLog('Web page timed out. Retrying...')
+            printToLog('Web page timed out. Retrying...', Color.FAIL)
             time.sleep(5)
             continue
         if checkStatusCode and response.status_code != 200:
-            printToLog('A server error (' + str(response.status_code) + ') occured. Retrying...')
-            printToLog('Error page: ' + response.url)
+            printToLog('A server error (' + str(response.status_code) + ') occured. Retrying...', Color.FAIL)
+            printToLog('Error page: ' + response.url, Color.FAIL)
             time.sleep(5)
             continue
         return response
@@ -248,7 +264,7 @@ for i, v in enumerate(list(ignoredFollowList)):
 # This is used in order to obtain the authenticity token required for logging in.
 
 loginPage = requestWebPage('GET', 'https://500px.com/login')
-printToLog('Retrieved login page.')
+printToLog('Retrieved login page.', Color.BOLD)
 time.sleep(20)
 
 loginPage_soup = BeautifulSoup(loginPage.text, 'html.parser')
@@ -258,7 +274,7 @@ csrfHeaders['X-CSRF-Token'] = loginParams['authenticity_token']
 # This is the actual login request.
 
 userLogin = requestWebPage('POST', 'https://api.500px.com/v1/session', data = loginParams)
-printToLog('Logged in successfully.')
+printToLog('Logged in successfully.', Color.BOLD)
 time.sleep(20)
 
 # Getting my user info from login response.
@@ -270,9 +286,9 @@ myUserInfo = json.loads(userLogin.text)['user']
 pendingUserNames = [pendingFollowUser['name'] for pendingFollowUser in pendingFollowList]
 
 followers = getFollowers()
-printToLog('Obtained a list of followers.')
+printToLog('Obtained a list of followers.', Color.BOLD)
 following = getFollowing()
-printToLog('Obtained a list of people we\'re following.')
+printToLog('Obtained a list of people we\'re following.', Color.BOLD)
 
 for followingUser in following:
     if followingUser['username'] in pendingUserNames:
@@ -281,8 +297,8 @@ for followingUser in following:
         continue
     unfollowUser(followingUser['username'])
     addUserToIgnoredList(followingUser['username'])
-    printToLog(followingUser['username'] + ' isn\'t following you and isn\'t pending. Ignored and unfollowed.')
-printToLog('Finished comparing followers against following.')
+    printToLog(followingUser['username'] + ' isn\'t following you and isn\'t pending. Ignored and unfollowed.', Color.WARNING)
+printToLog('Finished comparing followers against following.', Color.BOLD)
 
 for follower in list(followers):
     currentTime = time.time()
@@ -291,7 +307,7 @@ for follower in list(followers):
         continue
     removeUserFromPendingList(follower['username'])
     addUserToAcceptedList(follower['username'])
-    printToLog(follower['username'] + ' followed you. Accepted.')
+    printToLog(follower['username'] + ' followed you. Accepted.', Color.OKGREEN)
     pendingUserNames.remove(follower['username'])
     followers.remove(follower)
 
@@ -303,14 +319,14 @@ for follower in list(pendingFollowList):
     unfollowUser(follower['name'])
     addUserToIgnoredList(follower['name'])
     pendingUserNames.remove(follower['name'])
-    printToLog(follower['name'] + ' didn\'t follow you. Ignored and unfollowed.')
+    printToLog(follower['name'] + ' didn\'t follow you. Ignored and unfollowed.', Color.WARNING)
 
-printToLog('Review of followed users finished.')
+printToLog('Review of followed users finished.', Color.BOLD)
 
 # Time to view the up-and-coming and follow more people :)
 
 pageNum = 1 # Do not change.
-numFollowsWanted = 101 # 101 is the daily limit for follows, and any more than this fails. Don't increase.
+numFollowsWanted = 0 # 101 is the daily limit for follows, and any more than this fails. Don't increase.
 numFollowsDone = 0 # Do not change.
 
 while numFollowsDone < numFollowsWanted:
@@ -321,9 +337,18 @@ while numFollowsDone < numFollowsWanted:
         if numFollowsDone == numFollowsWanted:
             break
         if not isUserPending(userName) and not isUserAccepted(userName) and not isUserIgnored(userName):
-            followUser(userName)
+            if len(userName) >= 32:
+                printToLog('Skipping ' + userName + ' (non-latin username).', Color.WARNING)
+            elif userName[:3] == 'vcg':
+                printToLog('Skipping ' + userName + ' (vcg user).', Color.WARNING)
+            elif userName.isdigit() == True:
+                printToLog('Skipping ' + userName + ' (numbers only).', Color.WARNING)
+            elif userName[:-1].isdigit() == True:
+                printToLog('Skipping ' + userName + ' (numbers at the end).', Color.WARNING)
+            else:
+                followUser(userName)
         else:
-            printToLog('Skipping ' + userName + '.')
+            printToLog('Skipping ' + userName + '.', Color.WARNING)
     pageNum += 1
     time.sleep(20)
-printToLog('Finished. No more users left to follow.')
+printToLog('Finished. No more users left to follow.', Color.BOLD)
